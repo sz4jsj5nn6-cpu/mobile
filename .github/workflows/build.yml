@@ -7,6 +7,10 @@ on:
         description: 'commit, branch or "date:YYYY-MM-DD"'
         required: false
         default: 'date:2025-12-12'
+      with_driver:
+        description: 'install mmr.c (true/false)'
+        required: false
+        default: 'true'
 
 env:
   BRANCH: oneplus/sm8750_b_16.0.0_oneplus_ace5_pro
@@ -117,6 +121,7 @@ jobs:
       # The driver is dropped in as a plain file plus one Makefile line, so no
       # patch has to be kept in sync with the tree.
       - name: Install driver
+        if: ${{ github.event.inputs.with_driver != 'false' }}
         run: |
           set -eux
           cp src/mmr.c kernel/drivers/misc/mmr.c

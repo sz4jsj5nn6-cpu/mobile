@@ -1,0 +1,6 @@
+# Large local artefacts: never commit these
+backup/
+out/
+unpacked/
+tools/
+*.img
