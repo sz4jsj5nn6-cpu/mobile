@@ -8,16 +8,17 @@ on:
         required: false
         default: 'date:2025-12-12'
 
+env:
+  BRANCH: oneplus/sm8750_b_16.0.0_oneplus_ace5_pro
+
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 240
+    timeout-minutes: 300
 
     steps:
       - uses: actions/checkout@v4
 
-      # The hosted runner ships with several GB of toolchains this job will never
-      # use; reclaiming them is what makes a kernel build fit.
       - name: Reclaim disk
         run: |
           sudo rm -rf /usr/share/dotnet /usr/share/swift /usr/local/lib/android \
@@ -31,22 +32,30 @@ jobs:
           sudo apt-get install -y -qq build-essential bc bison flex \
             libssl-dev libelf-dev zstd cpio rsync
 
+      - name: Cache clang
+        id: clang-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.clang
+          key: clang-r487747c-v1
+
       - name: Fetch clang r487747c
+        if: steps.clang-cache.outputs.cache-hit != 'true'
         run: |
           set -eux
-          mkdir -p "$RUNNER_TEMP/clang" && cd "$RUNNER_TEMP/clang"
-          curl -fsSL -o clang.tar.gz \
+          mkdir -p "$GITHUB_WORKSPACE/.clang"
+          curl -fsSL -o "$RUNNER_TEMP/clang.tar.gz" \
             "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-release/clang-r487747c.tar.gz"
-          tar xzf clang.tar.gz
-          echo "CLANG_PATH=$RUNNER_TEMP/clang/bin" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/clang/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/clang/bin/clang" --version
+          tar xzf "$RUNNER_TEMP/clang.tar.gz" -C "$GITHUB_WORKSPACE/.clang"
+          "$GITHUB_WORKSPACE/.clang/bin/clang" --version
+
+      - name: Put clang on PATH
+        run: echo "$GITHUB_WORKSPACE/.clang/bin" >> "$GITHUB_PATH"
 
       - name: Clone kernel source
         run: |
           set -eux
-          git clone --shallow-since=2025-10-01 \
-            --branch oneplus/sm8750_b_16.0.0_oneplus_ace5_pro \
+          git clone --shallow-since=2025-10-01 --branch "$BRANCH" \
             https://github.com/OnePlusOSS/android_kernel_oneplus_sm8750.git kernel
           cd kernel
           ref="${{ github.event.inputs.kernel_ref }}"
@@ -54,19 +63,19 @@ jobs:
             date:*) sha=$(git log --before="${ref#date:} 23:59:59" -1 --format=%H) ;;
             *)      sha="$ref" ;;
           esac
-          echo "checking out $sha"
           git checkout "$sha"
           git log -1 --format='%H %ci %s'
           df -h /
 
-      # OnePlus splits the tree: kernel/oplus_cpu, mm/mm_osvelte and friends are
-      # symlinks into a separate modules repository, resolved relative to a
-      # workspace layout that does not exist here. Materialise every dangling
-      # vendor symlink as a real directory instead of chasing them one by one.
+      # OnePlus splits the tree: many directories are symlinks into a separate
+      # modules repository, resolved against a workspace layout that does not
+      # exist here. Materialise each dangling vendor link as a real directory,
+      # falling back to the longest existing prefix when the exact target is
+      # absent upstream.
       - name: Materialise vendor symlinks
         run: |
           set -eux
-          git clone --depth 1 --branch oneplus/sm8750_b_16.0.0_oneplus_ace5_pro \
+          git clone --depth 1 --branch "$BRANCH" \
             https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git modules
           cd kernel
           n=0
@@ -75,8 +84,6 @@ jobs:
             tgt=$(readlink "$l") || continue
             case "$tgt" in *vendor/*) ;; *) continue ;; esac
             rel=${tgt##*vendor/}
-            # Some links name a subdirectory that does not exist upstream while
-            # its parent does; fall back to the longest existing prefix.
             while [ -n "$rel" ] && [ ! -e "$GITHUB_WORKSPACE/modules/vendor/$rel" ]; do
               case "$rel" in
                 */*) rel=${rel%/*} ;;
@@ -86,11 +93,22 @@ jobs:
             [ -n "$rel" ] || { echo "unresolved: $l -> $tgt"; continue; }
             src="$GITHUB_WORKSPACE/modules/vendor/$rel"
             rm -f "$l"
-            if [ -d "$src" ]; then mkdir -p "$l"; cp -a "$src/." "$l/"; else cp -a "$src" "$l"; fi
-            echo "materialised $l"
+            mkdir -p "$l"
+            cp -a "$src/." "$l/"
+            echo "materialised $l from vendor/$rel"
             n=$((n+1))
           done < <(find . -type l)
           echo "total $n"
+
+      - name: Verify vendor tree
+        run: |
+          set -eux
+          cd kernel
+          ls -ld drivers/soc/oplus/storage
+          ls drivers/soc/oplus/storage | head -8
+          test -e drivers/soc/oplus/storage/common/io_metrics/Kconfig
+          test -e kernel/oplus_cpu/Kconfig
+          test -e mm/mm_osvelte/Kconfig
 
       # The driver is dropped in as a plain file plus one Makefile line, so no
       # patch has to be kept in sync with the tree.
@@ -107,13 +125,11 @@ jobs:
           set -eux
           cd kernel
           cp ../config/device_config .config
-          # Pin the release string to the value the device reports, otherwise
-          # uname -r changes and every module path on the device breaks.
           scripts/config --file .config -d LOCALVERSION_AUTO
           scripts/config --file .config --set-str LOCALVERSION "-android14-11-o-g64180ab070e5"
-          sed -i 's/^VERSION = .*/VERSION = 6/'          Makefile
-          sed -i 's/^PATCHLEVEL = .*/PATCHLEVEL = 1/'    Makefile
-          sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/'      Makefile
+          sed -i 's/^VERSION = .*/VERSION = 6/'       Makefile
+          sed -i 's/^PATCHLEVEL = .*/PATCHLEVEL = 1/' Makefile
+          sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/'   Makefile
           make ARCH=arm64 LLVM=1 olddefconfig
           grep -E '^CONFIG_(LOCALVERSION|PGTABLE_LEVELS|ARM64_VA_BITS)=' .config
 
