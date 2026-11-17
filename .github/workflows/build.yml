@@ -148,11 +148,6 @@ jobs:
           cd kernel
           cp ../config/device_config .config
           scripts/config --file .config -d LOCALVERSION_AUTO
-          # .scmversion short-circuits scripts/setlocalversion, which otherwise
-          # appends "+" because this tree is dirty by construction. The release
-          # string has to match /vendor/lib/modules/<release>/ exactly or the
-          # vendor modules will not load at boot.
-          echo "-android14-11-o-g64180ab070e5" > .scmversion
           scripts/config --file .config --set-str LOCALVERSION ""
           # The device config points the KMI symbol list at a path on OnePlus's
           # build machine. kernel/module/Makefile treats a non-empty value as a
@@ -175,7 +170,13 @@ jobs:
           grep -E '^CONFIG_OPLUS_FEATURE_STORAGE_IO' .config || echo "io_metrics disabled"
           grep -E '^CONFIG_(LOCALVERSION|PGTABLE_LEVELS|ARM64_VA_BITS)=' .config
 
+      # setlocalversion appends "+" to any tree with local changes unless
+      # LOCALVERSION is present in the environment, and it concatenates that
+      # value into the release string. The release has to match
+      # /vendor/lib/modules/<release>/ exactly or vendor modules fail to load.
       - name: Build
+        env:
+          LOCALVERSION: '-android14-11-o-g64180ab070e5'
         run: |
           set -eux
           cd kernel
