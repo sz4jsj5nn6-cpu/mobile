@@ -93,8 +93,12 @@ jobs:
             [ -n "$rel" ] || { echo "unresolved: $l -> $tgt"; continue; }
             src="$GITHUB_WORKSPACE/modules/vendor/$rel"
             rm -f "$l"
-            mkdir -p "$l"
-            cp -a "$src/." "$l/"
+            if [ -d "$src" ]; then
+              mkdir -p "$l"
+              cp -a "$src/." "$l/" || { echo "copy failed: $l"; continue; }
+            else
+              cp -a "$src" "$l" || { echo "copy failed: $l"; continue; }
+            fi
             echo "materialised $l from vendor/$rel"
             n=$((n+1))
           done < <(find . -type l)
