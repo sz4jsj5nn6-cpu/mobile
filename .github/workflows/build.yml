@@ -39,6 +39,7 @@ jobs:
             "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-release/clang-r487747c.tar.gz"
           tar xzf clang.tar.gz
           echo "CLANG_PATH=$RUNNER_TEMP/clang/bin" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/clang/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/clang/bin/clang" --version
 
       - name: Clone kernel source
