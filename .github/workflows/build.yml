@@ -59,18 +59,30 @@ jobs:
           git log -1 --format='%H %ci %s'
           df -h /
 
-      # OnePlus splits the tree: kernel/oplus_cpu is a symlink into the separate
-      # modules repository. Materialise it as a real directory so kconfig can
-      # follow it without the original workspace layout.
-      - name: Overlay vendor tree
+      # OnePlus splits the tree: kernel/oplus_cpu, mm/mm_osvelte and friends are
+      # symlinks into a separate modules repository, resolved relative to a
+      # workspace layout that does not exist here. Materialise every dangling
+      # vendor symlink as a real directory instead of chasing them one by one.
+      - name: Materialise vendor symlinks
         run: |
           set -eux
           git clone --depth 1 --branch oneplus/sm8750_b_16.0.0_oneplus_ace5_pro \
             https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git modules
-          rm -f kernel/kernel/oplus_cpu
-          mkdir -p kernel/kernel/oplus_cpu
-          cp -a modules/vendor/oplus/kernel/cpu/. kernel/kernel/oplus_cpu/
-          ls kernel/kernel/oplus_cpu | head -5
+          cd kernel
+          n=0
+          while IFS= read -r l; do
+            [ -e "$l" ] && continue
+            tgt=$(readlink "$l") || continue
+            case "$tgt" in *vendor/*) ;; *) continue ;; esac
+            rel=${tgt##*vendor/}
+            src="$GITHUB_WORKSPACE/modules/vendor/$rel"
+            [ -e "$src" ] || { echo "unresolved: $l -> $tgt"; continue; }
+            rm -f "$l"
+            if [ -d "$src" ]; then mkdir -p "$l"; cp -a "$src/." "$l/"; else cp -a "$src" "$l"; fi
+            echo "materialised $l"
+            n=$((n+1))
+          done < <(find . -type l)
+          echo "total $n"
 
       # The driver is dropped in as a plain file plus one Makefile line, so no
       # patch has to be kept in sync with the tree.
