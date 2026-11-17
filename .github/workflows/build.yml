@@ -64,9 +64,9 @@ jobs:
       - name: Install driver
         run: |
           set -eux
-          cp src/hlmem.c kernel/drivers/misc/hlmem.c
-          grep -q 'hlmem.o' kernel/drivers/misc/Makefile || \
-            echo 'obj-y += hlmem.o' >> kernel/drivers/misc/Makefile
+          cp src/mmr.c kernel/drivers/misc/mmr.c
+          grep -q 'mmr.o' kernel/drivers/misc/Makefile || \
+            echo 'obj-y += mmr.o' >> kernel/drivers/misc/Makefile
           tail -3 kernel/drivers/misc/Makefile
 
       - name: Configure
