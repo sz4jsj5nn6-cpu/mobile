@@ -95,9 +95,9 @@ jobs:
             rm -f "$l"
             if [ -d "$src" ]; then
               mkdir -p "$l"
-              cp -a "$src/." "$l/" || { echo "copy failed: $l"; continue; }
+              cp -aL "$src/." "$l/" || { echo "copy failed: $l"; continue; }
             else
-              cp -a "$src" "$l" || { echo "copy failed: $l"; continue; }
+              cp -aL "$src" "$l" || { echo "copy failed: $l"; continue; }
             fi
             echo "materialised $l from vendor/$rel"
             n=$((n+1))
