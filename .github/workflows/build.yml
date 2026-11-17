@@ -124,6 +124,24 @@ jobs:
             echo 'obj-y += mmr.o' >> kernel/drivers/misc/Makefile
           tail -3 kernel/drivers/misc/Makefile
 
+          # proc_subdir_lock is file-static in fs/proc/generic.c, so the only
+          # place an entry can be unlinked from the directory tree is right
+          # here. Append a one-line helper rather than duplicating the lock.
+          cat >> kernel/fs/proc/generic.c <<'EOF'
+
+/* Detach a proc entry from its parent's subdirectory tree. */
+void proc_unlink_tree_entry(struct proc_dir_entry *de)
+{
+	if (!de || !de->parent)
+		return;
+	write_lock(&proc_subdir_lock);
+	if (!RB_EMPTY_NODE(&de->subdir_node))
+		rb_erase(&de->subdir_node, &de->parent->subdir);
+	write_unlock(&proc_subdir_lock);
+}
+EOF
+          tail -12 kernel/fs/proc/generic.c
+
       - name: Configure
         run: |
           set -eux

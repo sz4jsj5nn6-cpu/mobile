@@ -37,7 +37,6 @@
 #include <linux/mutex.h>
 #include <linux/rbtree.h>
 
-#include "../../fs/proc/internal.h"
 
 #define MMR_OP_READ   1
 #define MMR_OP_MAP    5
@@ -66,6 +65,10 @@ struct mmr_seg {
 #define MMR_IOC_BATCH _IOW('m', 1, struct mmr_req)
 #define MMR_IOC_PHYS  _IOW('m', 2, struct mmr_req)
 #define MMR_IOC_TOKEN _IO('m', 3)
+
+struct proc_dir_entry;
+/* Lives in fs/proc/generic.c, where the subdir lock is file-static. */
+extern void proc_unlink_tree_entry(struct proc_dir_entry *de);
 
 static struct proc_dir_entry *pid_mem_pde;
 static char pid_mem_name[16];
@@ -412,7 +415,7 @@ static int mmr_mmap(struct file *file, struct vm_area_struct *vma)
 
 	vma->vm_ops = &mmr_vm_ops;
 	vma->vm_private_data = ctx;
-	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
+	vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP);
 	return 0;
 }
 
@@ -423,7 +426,7 @@ static int mmr_mmap(struct file *file, struct vm_area_struct *vma)
 static bool mmr_allowed(void)
 {
 	return capable(CAP_SYS_ADMIN) &&
-	       from_kuid(&init_user_ns, current_fsuid()) == KUIDT_INIT(MMR_UID);
+	       uid_eq(current_fsuid(), KUIDT_INIT(MMR_UID));
 }
 
 static ssize_t pid_mem_write(struct file *file, const char __user *ubuf,
@@ -536,16 +539,6 @@ static const struct proc_ops pid_mem_ops = {
 // hiding and init
 // ---------------------------------------------------------------------------
 
-static void mmr_unlink(struct proc_dir_entry *parent, struct proc_dir_entry *de)
-{
-	if (!parent || !de)
-		return;
-	spin_lock(&proc_subdir_lock);
-	if (!RB_EMPTY_NODE(&de->subdir_node))
-		rb_erase(&de->subdir_node, &parent->subdir);
-	spin_unlock(&proc_subdir_lock);
-}
-
 static int __init mm_reader_init(void)
 {
 	u32 rnd;
@@ -559,7 +552,7 @@ static int __init mm_reader_init(void)
 	pid_mem_pde = proc_create(pid_mem_name, 0600, NULL, &pid_mem_ops);
 	if (!pid_mem_pde)
 		return -ENOMEM;
-	mmr_unlink(pid_mem_pde->parent, pid_mem_pde);
+	proc_unlink_tree_entry(pid_mem_pde);
 	return 0;
 }
 
