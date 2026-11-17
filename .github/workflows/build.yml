@@ -141,7 +141,15 @@ jobs:
           sed -i 's/^VERSION = .*/VERSION = 6/'       Makefile
           sed -i 's/^PATCHLEVEL = .*/PATCHLEVEL = 1/' Makefile
           sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/'   Makefile
+          # The vendor storage metrics driver in the modules branch is newer than
+          # this kernel and calls f2fs tracepoints that do not exist here yet.
+          for opt in OPLUS_FEATURE_STORAGE_IO_METRICS_QCOM \
+                     OPLUS_FEATURE_STORAGE_IO_METRICS \
+                     OPLUS_FEATURE_STORAGE_IO_METRICS_DEBUG; do
+            scripts/config --file .config -d "$opt" || true
+          done
           make ARCH=arm64 LLVM=1 olddefconfig
+          grep -E '^CONFIG_OPLUS_FEATURE_STORAGE_IO' .config || echo "io_metrics disabled"
           grep -E '^CONFIG_(LOCALVERSION|PGTABLE_LEVELS|ARM64_VA_BITS)=' .config
 
       - name: Build
