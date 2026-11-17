@@ -131,6 +131,13 @@ jobs:
           cp ../config/device_config .config
           scripts/config --file .config -d LOCALVERSION_AUTO
           scripts/config --file .config --set-str LOCALVERSION "-android14-11-o-g64180ab070e5"
+          # The device config points the KMI symbol list at a path on OnePlus's
+          # build machine. kernel/module/Makefile treats a non-empty value as a
+          # hard dependency, so give it a real, empty file to depend on.
+          mkdir -p include/config
+          : > include/config/abi_gki_kmi_symbols
+          scripts/config --file .config --set-str UNUSED_KSYMS_WHITELIST \
+            "include/config/abi_gki_kmi_symbols"
           sed -i 's/^VERSION = .*/VERSION = 6/'       Makefile
           sed -i 's/^PATCHLEVEL = .*/PATCHLEVEL = 1/' Makefile
           sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/'   Makefile
