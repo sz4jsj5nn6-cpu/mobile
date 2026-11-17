@@ -75,8 +75,16 @@ jobs:
             tgt=$(readlink "$l") || continue
             case "$tgt" in *vendor/*) ;; *) continue ;; esac
             rel=${tgt##*vendor/}
+            # Some links name a subdirectory that does not exist upstream while
+            # its parent does; fall back to the longest existing prefix.
+            while [ -n "$rel" ] && [ ! -e "$GITHUB_WORKSPACE/modules/vendor/$rel" ]; do
+              case "$rel" in
+                */*) rel=${rel%/*} ;;
+                *)   rel="" ;;
+              esac
+            done
+            [ -n "$rel" ] || { echo "unresolved: $l -> $tgt"; continue; }
             src="$GITHUB_WORKSPACE/modules/vendor/$rel"
-            [ -e "$src" ] || { echo "unresolved: $l -> $tgt"; continue; }
             rm -f "$l"
             if [ -d "$src" ]; then mkdir -p "$l"; cp -a "$src/." "$l/"; else cp -a "$src" "$l"; fi
             echo "materialised $l"
