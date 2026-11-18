@@ -13,7 +13,7 @@ on:
         default: 'true'
 
 env:
-  BRANCH: oneplus/sm8750_b_16.0.0_oneplus_ace5_pro
+  BRANCH: oneplus/sm8650_b_16.0.0_ace_5
 
 jobs:
   build:
@@ -60,7 +60,7 @@ jobs:
         run: |
           set -eux
           git clone --shallow-since=2025-10-01 --branch "$BRANCH" \
-            https://github.com/OnePlusOSS/android_kernel_oneplus_sm8750.git kernel
+            https://github.com/OnePlusOSS/android_kernel_oneplus_sm8650.git kernel
           cd kernel
           ref="${{ github.event.inputs.kernel_ref }}"
           case "$ref" in
@@ -80,7 +80,7 @@ jobs:
         run: |
           set -eux
           git clone --depth 1 --branch "$BRANCH" \
-            https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750.git modules
+            https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8650.git modules
           cd kernel
           n=0
           while IFS= read -r l; do
@@ -161,6 +161,7 @@ jobs:
           : > include/config/abi_gki_kmi_symbols
           scripts/config --file .config --set-str UNUSED_KSYMS_WHITELIST \
             "include/config/abi_gki_kmi_symbols"
+          echo "source version before pinning:"; grep -E '^(VERSION|PATCHLEVEL|SUBLEVEL) =' Makefile
           sed -i 's/^VERSION = .*/VERSION = 6/'       Makefile
           sed -i 's/^PATCHLEVEL = .*/PATCHLEVEL = 1/' Makefile
           sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/'   Makefile
