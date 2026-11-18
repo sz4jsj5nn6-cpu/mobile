@@ -160,23 +160,6 @@ have_pfn:
 	return 0;
 }
 
-static int mmr_fault_in(struct mm_struct *mm, unsigned long va)
-{
-	struct vm_area_struct *vma;
-	vm_fault_t ret;
-	int err = -EFAULT;
-
-	mmap_read_lock(mm);
-	vma = find_vma(mm, va);
-	if (vma && vma->vm_start <= va) {
-		ret = handle_mm_fault(vma, va, FAULT_FLAG_REMOTE, NULL);
-		if (!(ret & VM_FAULT_ERROR))
-			err = 0;
-	}
-	mmap_read_unlock(mm);
-	return err;
-}
-
 static long mmr_read_range(struct mm_struct *mm, unsigned long va,
 			   char __user *dst, u32 len)
 {
@@ -195,10 +178,10 @@ static long mmr_read_range(struct mm_struct *mm, unsigned long va,
 			mmap_read_unlock(mm);
 			if (ret == 0)
 				break;
-			if (ret != -EAGAIN)
-				return ret;
-			if (mmr_fault_in(mm, cur) != 0)
-				return -EFAULT;
+			/* Swapped-out page: this kernel does not export the fault
+			 * path to modules, so report the miss and let the caller
+			 * retry on its next frame. */
+			return ret;
 		}
 		if (ret != 0)
 			return -EFAULT;
@@ -376,10 +359,8 @@ static vm_fault_t mmr_vma_fault(struct vm_fault *vmf)
 	err = mmr_page(mm, va, &page, &off);
 	mmap_read_unlock(mm);
 	if (err == -EAGAIN) {
-		mmr_fault_in(mm, va);
-		mmap_read_lock(mm);
-		err = mmr_page(mm, va, &page, &off);
-		mmap_read_unlock(mm);
+		mmput(mm);
+		return VM_FAULT_RETRY;
 	}
 	mmput(mm);
 	if (err)
