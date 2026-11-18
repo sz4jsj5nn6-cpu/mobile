@@ -163,6 +163,10 @@ jobs:
           : > include/config/abi_gki_kmi_symbols
           scripts/config --file .config --set-str UNUSED_KSYMS_WHITELIST \
             "include/config/abi_gki_kmi_symbols"
+          # Trimming with an empty whitelist exports nothing at all, which makes
+          # every module reference unresolved. The symbol table is what the
+          # module build needs, so keep the full export set.
+          scripts/config --file .config -d TRIM_UNUSED_KSYMS
           echo "source version before pinning:"; grep -E '^(VERSION|PATCHLEVEL|SUBLEVEL) =' Makefile
           sed -i 's/^VERSION = .*/VERSION = 6/'       Makefile
           sed -i 's/^PATCHLEVEL = .*/PATCHLEVEL = 1/' Makefile
