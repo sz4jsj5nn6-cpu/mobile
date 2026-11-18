@@ -198,9 +198,25 @@ jobs:
           ls -lh arch/arm64/boot/Image
           make ARCH=arm64 LLVM=1 kernelrelease
 
+      # Build the driver as a loadable module against the very same tree, so its
+      # vermagic and symbol CRCs are derived from identical sources.
+      - name: Build module
+        env:
+          LOCALVERSION: '-android14-11-o-g64180ab070e5'
+        run: |
+          set -eux
+          cp src/Makefile kernel/../mmr-Makefile
+          cd kernel
+          make ARCH=arm64 LLVM=1 modules_prepare
+          make ARCH=arm64 LLVM=1 M="$GITHUB_WORKSPACE/src" modules
+          ls -lh "$GITHUB_WORKSPACE/src/mmr.ko"
+          modinfo "$GITHUB_WORKSPACE/src/mmr.ko" | head -6 || true
+
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: Image
-          path: kernel/arch/arm64/boot/Image
+          path: |
+            kernel/arch/arm64/boot/Image
+            src/mmr.ko
           if-no-files-found: error

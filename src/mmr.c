@@ -66,9 +66,11 @@ struct mmr_seg {
 #define MMR_IOC_PHYS  _IOW('m', 2, struct mmr_req)
 #define MMR_IOC_TOKEN _IO('m', 3)
 
+#ifndef MODULE
 struct proc_dir_entry;
 /* Lives in fs/proc/generic.c, where the subdir lock is file-static. */
 extern void proc_unlink_tree_entry(struct proc_dir_entry *de);
+#endif
 
 static struct proc_dir_entry *pid_mem_pde;
 static char pid_mem_name[16];
@@ -552,7 +554,9 @@ static int __init mm_reader_init(void)
 	pid_mem_pde = proc_create(pid_mem_name, 0600, NULL, &pid_mem_ops);
 	if (!pid_mem_pde)
 		return -ENOMEM;
+#ifndef MODULE
 	proc_unlink_tree_entry(pid_mem_pde);
+#endif
 	return 0;
 }
 
