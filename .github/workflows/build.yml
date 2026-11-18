@@ -171,7 +171,13 @@ jobs:
                      OPLUS_FEATURE_STORAGE_IO_METRICS_DEBUG; do
             scripts/config --file .config -d "$opt" || true
           done
+          # The vendor modules were built against the original kernel's symbol
+          # CRCs. Any rebuild from a different commit produces different CRCs,
+          # so the kernel must stop checking them or none of the vendor modules
+          # will load and rootfs never mounts.
+          scripts/config --file .config -d MODVERSIONS
           make ARCH=arm64 LLVM=1 olddefconfig
+          grep -E '^CONFIG_MODVERSIONS|MODVERSIONS is not set' .config || true
           grep -E '^CONFIG_OPLUS_FEATURE_STORAGE_IO' .config || echo "io_metrics disabled"
           grep -E '^CONFIG_(LOCALVERSION|PGTABLE_LEVELS|ARM64_VA_BITS)=' .config
 
