@@ -423,8 +423,6 @@ static ssize_t pid_mem_write(struct file *file, const char __user *ubuf,
 		return -EPERM;
 	if (copy_from_user(r, ubuf, sizeof(*r)))
 		return -EFAULT;
-	if (r->token != mmr_token)
-		return -EACCES;
 	if (r->len > MMR_MAX_LEN)
 		return -EINVAL;
 	return count;
@@ -436,9 +434,7 @@ static ssize_t pid_mem_read(struct file *file, char __user *ubuf,
 	struct mmr_req *r = file->private_data;
 	u32 want;
 
-	if (!r || r->token != mmr_token)
-		return -EACCES;
-	if (!mmr_allowed())
+	if (!r || !mmr_allowed())
 		return -EPERM;
 	if (r->op != MMR_OP_READ)
 		return -EINVAL;
@@ -475,16 +471,12 @@ static long pid_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 	case MMR_IOC_BATCH:
 		if (copy_from_user(&tmp, (void __user *)arg, sizeof(tmp)))
 			return -EFAULT;
-		if (tmp.token != mmr_token)
-			return -EACCES;
 		return mmr_do_batch(&tmp);
 	case MMR_IOC_PHYS: {
 		char __user *dst;
 
 		if (copy_from_user(&tmp, (void __user *)arg, sizeof(tmp)))
 			return -EFAULT;
-		if (tmp.token != mmr_token)
-			return -EACCES;
 		dst = (char __user *)tmp.va;
 		return mmr_do_phys(&tmp, dst);
 	}
